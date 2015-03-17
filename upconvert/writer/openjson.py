@@ -31,5 +31,19 @@ class JSON:
 
     def write(self, design, filename):
         """ Recursively ask for JSON forms of components for output """
-        with open(filename, "w") as f:
-            f.write(json.dumps(design.json(), sort_keys=True, indent=4))
+        if isinstance(design, list):
+            num = 1
+            ext = ".upv"
+            if filename.find(".upv") != -1:
+                filename = filename[: filename.find(ext)]
+
+            # if design is a list. Should create multiple files.
+            for d in design:
+                with open(filename + "_" + str(num) + ext, "w") as f:
+                    f.write(json.dumps(d.json(), sort_keys=True, indent=4))
+                    f.close()
+                    print "the " + str(num) + "st file is generated."
+                num += 1
+        else:
+            with open(filename, "w") as f:
+                f.write(json.dumps(design.json(), sort_keys=True, indent=4))
