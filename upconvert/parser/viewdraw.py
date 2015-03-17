@@ -26,7 +26,7 @@ from upconvert.core.design import Design
 from upconvert.core.components import Components, Component, Symbol, SBody, Pin
 from upconvert.core.component_instance import ComponentInstance, SymbolAttribute
 from upconvert.core.shape import Circle, Line, Rectangle, Label, Arc
-from os import listdir, sep as dirsep
+from os import listdir, sep as dirsep, path
 from math import pi, sqrt, atan
 from collections import defaultdict
 from copy import deepcopy
@@ -215,19 +215,15 @@ class ViewDrawBase:
         # drawn perpendicular to and bisecting these chords will intersect at
         # the circle's centre.
         x0, y0, x1, y1, x2, y2 = [float(pt) for pt in args.split()]
-        # can't allow for infinite slopes (m_a and m_b), and can't allow m_a
-        # to be a zero slope.
-        while abs(x0 - x1) < 0.1 or abs(x1 - x2) < 0.1 or abs(y0 - y1) < 0.1:
-            x0, y0, x1, y1, x2, y2 = x1, y1, x2, y2, x0, y0
-        # slopes of the chords
-        m_a, m_b = (y1-y0) / (x1-x0), (y2-y1) / (x2-x1)
+        while (x1-x0)*(y2-y0) < 0.1 and (x2-x0)*(y1-y0) < 0.1:
+           x0, y0, x1, y1, x2, y2 = x1, y1, x2, y2, x0, y0
         # find the centre
-        xcenter = ((m_a * m_b * (y0 - y2) + m_b * (x0 + x1) - m_a * (x1 + x2))
-                   / (2 * (m_b - m_a)))
-        ycenter = (-1/m_a) * (xcenter - (x0+x1) / 2) + (y0+y1) / 2
+        xcenter = ((y2-y0)*(y1**2-y0**2+x1**2-x0**2)+(y1-y0)*(y0**2-y2**2+x0**2-x2**2))\
+                  / (2*(x1-x0)*(y2-y0)-2*(x2-x0)*(y1-y0))
+        ycenter = ((x2-x0)*(x1**2-x0**2+y1**2-y0**2)+(x1-x0)*(x0**2-x2**2+y0**2-y2**2))\
+                  /(2*(y1-y0)*(x2-x0)-2*(y2-y0)*(x1-x0))
         # radius is the distance from the centre to any of the three points
         rad = sqrt((xcenter-x0)**2 + (ycenter-y0)**2)
-
         # re-init xs,ys so that start and end points don't get confused.
         x0, y0, x1, y1, x2, y2 = [float(pt) for pt in args.split()]
 
@@ -316,7 +312,7 @@ class ViewDrawSch(ViewDrawBase):
             ckt.add_shape(shape)
             if isinstance(shape, Label):
                 ann = Annotation(shape.text, shape.x, shape.y,
-                                 shape._rotation, True)
+                                 shape.rotation, True)
                 ckt.design_attributes.add_annotation(ann)
 
         for k, v, annot in tree['attr']:
@@ -379,6 +375,7 @@ class ViewDrawSch(ViewDrawBase):
             libkey = self.scaled_component(libname, libnum, scale)
         else:
             libkey = self.lookup(libname, libnum)
+
         thisinst = ComponentInstance(inst, self.lib.components[libkey],
                                      libkey, 0)
         rot, flip = self.rot_and_flip(rot)
@@ -444,8 +441,11 @@ class ViewDrawSch(ViewDrawBase):
 
     def lookup(self, libname, num):
         """ Given a component name and version, returns the filename """
-        return libname.lower() + '.' + num
-
+        libname = libname.lower() + '.' +num
+        for key in self.lib.components:
+            component = key[key.find(':')+1:]
+            if libname == component:
+                return key
 
 class ViewDrawSym(ViewDrawBase):
     """ Parser for a library symbol file. """
@@ -527,10 +527,11 @@ class ViewDrawSym(ViewDrawBase):
 class ViewDraw:
     """ The viewdraw parser. """
 
-    def __init__(self, schdir, symdirs):
+    def __init__(self):
         # symdirs is a dict; k,v = libname,directory
         # ^-that could be parsed out of a viewdraw.ini some day
-        self.schdir, self.symdirs = schdir, symdirs
+        # self.schdir, self.symdirs = schdir, symdirs
+        pass
 
     @staticmethod
     def inifile(projdir, inidirsep='\\'):
@@ -554,14 +555,21 @@ class ViewDraw:
                     dirname, libname = dirname[:-1], libname[:-1]
                 else:
                     dirname = vals
+                    libname = vals[vals.rfind(dirsep)+ 1:]
                 # dirname can be quoted
                 if dirname[0] == '"' and dirname[-1] == '"':
                     dirname = dirname[1:-1]
                 dirname = dirname.replace(inidirsep, dirsep) + dirsep
+                if dirname[0] == '.':
+                    dirname = ''
                 if 'p' in mode:
                     schdir = projdir + dirname + 'sch' + dirsep
+
                 if libname is not None:
-                    symdirs[libname] = projdir + dirname + 'sym' + dirsep
+                    symdirs[libname] = dirname + 'sym' + dirsep
+
+            schdir = projdir + 'sch' + dirsep
+            symdirs['.'] = projdir + 'sym' + dirsep
             return (schdir, symdirs)
 
     @staticmethod
@@ -569,12 +577,32 @@ class ViewDraw:
         """ Return our confidence that the given file is an viewdraw file """
         # I'm not sure what you'd throw this at right now, there is no "project
         # file" you could check. Maybe if/when viewdraw.ini parsing happens?
-        return 0
+
+        # I assume the filename is the project file: *.dproj
+        confidence = 0
+        filepath = filename[:filename.rfind(dirsep)]
+        # It should have a viewdraw.ini
+        if path.isfile(path.join(filepath, "viewdraw.ini")):
+            confidence += 0.4
+
+        if path.isdir(path.join(filepath, "sch")):
+            confidence +=0.2
+
+        if path.isdir(path.join(filepath, "sym")):
+            confidence +=0.2
+
+        if path.isdir(path.join(filepath, "wir")):
+            confidence +=0.2
+
+        return confidence
 
 
-    def parse(self):
+    def parse(self, filename):
         """ Parses a viewdraw project and returns a list of sheets. """
         lib = Components()
+
+        projdir = filename[:filename.rfind(dirsep)] + dirsep
+        self.schdir, self.symdirs = self.inifile(projdir, dirsep)
         # All the symbol files I have seen have a filename like partname.n
         # where n is a number, for multi-versioned parts I'm guessing
         for libname, libdir in self.symdirs.items():
@@ -593,6 +621,7 @@ class ViewDraw:
 
         # For now, we'll return a list of designs, each one represents one
         # sheet in the viewdraw schematic.
+        # TODO merge the list to a design object
         return sheets
 
 
