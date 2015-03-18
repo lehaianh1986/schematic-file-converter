@@ -288,10 +288,9 @@ class JSON(object):
         flip_horizontal = annotation.get('flip', False)
         visible = annotation.get('visible')
         # visible is a bool variable, so it can not use visible.lower()
-        if visible is not None and not visible:
-            visible = 'false'
-        else:
-            visible = 'true'
+        if visible is None:
+            visible = False
+
         return Annotation(value, x, y, rotation, visible, layer=layer, flip_horizontal=flip_horizontal, label=label)
 
 

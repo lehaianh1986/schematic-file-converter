@@ -209,7 +209,7 @@ class Eagle: # pylint: disable=R0902
             """ Just a constructor
             """
             self.number = number
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.color = color
             self.fill = fill
             self.visible = visible
@@ -271,7 +271,7 @@ class Eagle: # pylint: disable=R0902
             """ Just a constructor
             """
             super(Eagle.NamedShapeSet, self).__init__(numofshapes, shapes)
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             return
 
     class Web(object):
@@ -283,7 +283,7 @@ class Eagle: # pylint: disable=R0902
                      shapesets=None):
             """ Just a constructor
             """
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.numofblocks = numofblocks
             self.numofshapesets = numofshapesets
             if None == shapesets:
@@ -349,7 +349,7 @@ class Eagle: # pylint: disable=R0902
                      numofpackageblocks=0, packages=None,):
             """ Just a constructor
             """
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
 
             self.numofdevsetblocks = numofdevsetblocks
             if None == devsets:
@@ -1335,7 +1335,7 @@ class Eagle: # pylint: disable=R0902
             """ Just a constructor
             """
             super(Eagle.SMD, self).__init__(layer)
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.x = x
             self.y = y
             self.dx = dx
@@ -1465,7 +1465,7 @@ class Eagle: # pylint: disable=R0902
             """ Just a constructor
             """
             super(Eagle.Pad, self).__init__(layer=-1)
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.x = x
             self.y = y
             self.drill = drill
@@ -1625,7 +1625,7 @@ class Eagle: # pylint: disable=R0902
             super(Eagle.Gate, self).__init__(-1)
             self.x = x
             self.y = y
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.sindex = sindex
             self.addlevel = addlevel
             return
@@ -1855,7 +1855,7 @@ class Eagle: # pylint: disable=R0902
             """ Just a constructor
             """
             super(Eagle.AttributeNam, self).__init__(layer)
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.x = x
             self.y = y
             self.size = size
@@ -1960,14 +1960,14 @@ class Eagle: # pylint: disable=R0902
         def __init__(self, name, value):
             """ Just a constructor
             """
-            self.name = name
-            self.value = value
+            self.name = name.encode('ascii', 'replace')
+            self.value = value.encode('ascii', 'replace')
             return
 
         def _construct(self):
             """ Prepares a string
             """
-            _ret_val = self.delimeter.join((self.name, str(self.value)))
+            _ret_val = self.delimeter.join((self.name, self.value))
             return _ret_val
 
         def construct(self):
@@ -2054,7 +2054,7 @@ class Eagle: # pylint: disable=R0902
             """ Just a constructor
             """ 
             self.num = num
-            self.name = name
+            self.name = name.encode('ascii', 'replace')
             self.width = width
             self.drill = drill
             if None == clearances:
@@ -2217,6 +2217,8 @@ class Eagle: # pylint: disable=R0902
                     for _cbb in _css.bodies:
 
                         for _ci in design.component_instances:
+                            if _ci.library_id.find("a3sheet") != -1 and _cc == _ci.library_id:
+                                pass
                             if _cc != _ci.library_id:
                                 continue
                             for _xaa in _ci.attributes:
@@ -2233,7 +2235,7 @@ class Eagle: # pylint: disable=R0902
                                         _val = '>NAME'
                                     elif 1 == _an:
                                         _val = '>VALUE'
-
+                                    print _aa
                                     _rot = self.Shape.rotate2strings(_aa.rotation)
 
                                     _symbol.shapes.append(Eagle.Text(

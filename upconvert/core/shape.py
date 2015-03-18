@@ -146,8 +146,8 @@ class Rectangle(Shape):
     @classmethod
     def from_corners(cls, x, y, x2, y2):
         """ (x, y) is the top left corner, (x2, y2) is the bottom right """
-        width = x2 - x
-        height = y2 - y
+        width = abs(x2 - x)
+        height = abs(y2 - y)
         return cls(x, y, width, height)
 
 

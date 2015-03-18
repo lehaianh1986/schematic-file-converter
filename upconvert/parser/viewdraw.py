@@ -179,7 +179,7 @@ class ViewDrawBase:
     def parse_box(self, args):
         """ Returns a parsed box. """
         x1, y1, x2, y2 = [int(a) for a in args.split()]
-        return ('shape', Rectangle.from_corners(x1, y1, x2, y2))
+        return ('shape', Rectangle.from_corners(x1, y2, x2, y1))
 
     def parse_text(self, args):
         """ Parses a text label and returns as a Shape.Label. """
@@ -383,6 +383,9 @@ class ViewDrawSch(ViewDrawBase):
                                                       rot, flip))
         subdata = self.sub_nodes('|R A C'.split())
         for annot in subdata['annot']:
+            # use relative position for openjson
+            annot.x -= int(x)
+            annot.y -= int(y)
             thisinst.symbol_attributes[0].add_annotation(annot)
             if '=' in annot.value:
                 thisinst.add_attribute(*(annot.value.split('=', 1)))
