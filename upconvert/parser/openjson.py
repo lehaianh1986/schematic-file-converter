@@ -287,7 +287,8 @@ class JSON(object):
         rotation = float(annotation.get('rotation'))
         flip_horizontal = annotation.get('flip', False)
         visible = annotation.get('visible')
-        if visible is not None and visible.lower() == 'false':
+        # visible is a bool variable, so it can not use visible.lower()
+        if visible is not None and not visible:
             visible = 'false'
         else:
             visible = 'true'
