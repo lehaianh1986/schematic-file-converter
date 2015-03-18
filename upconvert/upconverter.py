@@ -64,7 +64,7 @@ from upconvert import version as ver
 
 from upconvert.parser import openjson as openjson_p, kicad as kicad_p, geda as geda_p, \
     eagle as eagle_p, eaglexml as eaglexml_p, fritzing as fritzing_p, gerber as gerber_p, \
-    specctra as specctra_p
+    specctra as specctra_p, viewdraw as viewdraw_p
 from upconvert.writer import openjson as openjson_w, kicad as kicad_w, geda as geda_w, \
     eagle as eagle_w, eaglexml as eaglexml_w, gerber as gerber_w, specctra as specctra_w, \
     bom_csv as bom_w, netlist_csv as netlist_w, ncdrill as ncdrill_w
@@ -93,6 +93,7 @@ PARSERS = {
     'fritzing': fritzing_p.Fritzing,
     'gerber': gerber_p.Gerber,
     'specctra': specctra_p.Specctra,
+    'viewdraw': viewdraw_p.ViewDraw
 }
 
 WRITERS = {
@@ -122,6 +123,7 @@ EXTENSIONS = {
     'image': '.png',
     'bom': '.csv',
     'netlist': '.csv',
+    'viewdraw': '.dproj'
 }
 
 
