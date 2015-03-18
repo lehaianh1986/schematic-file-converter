@@ -343,7 +343,7 @@ class EagleXML(object):
 
         for pin in body.pins:
             symbol.pin.append(
-                G.pin(name=self.pinnum2name[(cpt_name, pin.pin_number)].replace(' ', ''), #delete space
+                G.pin(name=str(self.pinnum2name[(cpt_name, pin.pin_number)]).replace(' ', ''), #delete space
                       x=self.make_length(pin.p2.x),
                       y=self.make_length(pin.p2.y),
                       length=self.get_pin_length(pin),
@@ -451,9 +451,10 @@ class EagleXML(object):
         layer = self.ensure_layer(body, 'symbol')
 
         for ann in symattr.annotations:
+            # name and value can't accept space in a value.
             inst.attribute.append(
-                G.attribute(name=ann.value,
-                            value=ann.value,
+                G.attribute(name=ann.value.replace(' ', ''),
+                            value=ann.value.replace(' ', ''),
                             layer=layer.number,
                             size="1.27",
                             x=self.make_length(ann.x + symattr.x),
@@ -539,8 +540,8 @@ class EagleXML(object):
         for point_id in pointset:
             for cc in openjson_net.points[point_id].connected_components:
                 cid = self.inst2cpt[cc.instance_id]
-                gate = self.cptpin2gate[cid, cc.pin_number]
-                pin_name = self.pinnum2name[(cid, cc.pin_number)]
+                gate = self.cptpin2gate[cid, int(cc.pin_number)]
+                pin_name = self.pinnum2name[(cid, int(cc.pin_number))]
                 pinref = G.pinref(part=cc.instance_id, gate=gate, pin=pin_name)
                 seg.pinref.append(pinref)
 
