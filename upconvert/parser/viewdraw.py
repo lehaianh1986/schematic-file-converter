@@ -350,8 +350,10 @@ class ViewDrawSch(ViewDrawBase):
                              subdata['netpoint'][pt_b - 1]))
         for annot in subdata['annot']:
             thisnet.add_annotation(annot)
-            if '=' in annot.value:
-                thisnet.add_attribute(*(annot.value.split('=', 1)))
+            # if annot.value doesn't equal to "name", add to attribute.
+            if "name" != annot.value:
+                thisnet.add_attribute("name", annot.value)
+                annot.value = "name"
         return ('net', thisnet)
 
     def parse_junc(self, args):

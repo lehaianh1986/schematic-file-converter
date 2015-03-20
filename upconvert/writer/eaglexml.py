@@ -215,7 +215,22 @@ class EagleXML(object):
         """ Add the nets to a dom object. """
 
         for net in design.nets:
-            dom.net.append(self.make_net(net))
+            nn = self.is_existed_net(dom, net)
+            if nn:
+                self.append_segment(nn, net)
+            else:
+                dom.net.append(self.make_net(net))
+
+
+    def is_existed_net(self, dom, net):
+        """ If there is a existed name in dom, return the net """
+        ret = None
+        for nn in dom.net:
+            if "name" in net.attributes and net.attributes["name"] == nn.name:
+                ret = nn
+                break
+
+        return ret
 
 
     def ensure_lib_for_cpt(self, libraries, cpt):
@@ -503,8 +518,11 @@ class EagleXML(object):
 
             for point_id in point_ids:
                 conncomps[point_id] = conncomp
-
-        net = G.net(name=openjson_net.net_id)
+        # normally, should use openjson_net.attributes.name
+        if "name" in openjson_net.attributes and openjson_net.attributes["name"] != "":
+            net = G.net(name=openjson_net.attributes["name"])
+        else:
+            net = G.net(name=openjson_net.net_id)
         done = set() # objects ids of point sets
 
         for pointset in conncomps.itervalues():
@@ -514,6 +532,32 @@ class EagleXML(object):
 
         return net
 
+
+    def append_segment(self, dom_net, openjson_net):
+        conncomps = {} # point id -> set([point id])
+
+        for point in openjson_net.points.itervalues():
+            point_ids = set(point.connected_points)
+            point_ids.add(point.point_id)
+            for point_id in point_ids:
+                if point_id in conncomps:
+                    conncomp = conncomps[point_id]
+                    conncomp.update(point_ids)
+                    break
+            else:
+                conncomp = point_ids
+
+            for point_id in point_ids:
+                conncomps[point_id] = conncomp
+
+        done = set() # objects ids of point sets
+
+        for pointset in conncomps.itervalues():
+            if id(pointset) not in done:
+                done.add(id(pointset))
+                dom_net.segment.append(self.make_segment(openjson_net, pointset))
+
+        return dom_net
 
     def make_segment(self, openjson_net, pointset):
         wires = set() # ((x1, y1), (x2, y2))
