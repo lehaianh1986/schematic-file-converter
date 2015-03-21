@@ -591,6 +591,13 @@ class EagleXML(object):
 
         seg.pinref.sort(key=lambda p : (p.part, p.gate, p.pin))
 
+        # add label for net name
+        for annot in openjson_net.annotations:
+            if annot.value == "name" and annot.visible:
+                layer = self.ensure_layer(openjson_net,"name")
+                label = G.label(x=self.make_length(annot.x), y=self.make_length(annot.y), rot=self.make_angle(annot.rotation), layer=layer.number, size=1.2)
+                seg.label.append(label)
+
         return seg
 
 
