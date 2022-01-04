@@ -98,16 +98,21 @@ class ViewDrawBase:
                         'T': 'parse_text',
                         'a': 'parse_arc',
                         'l': 'parse_line',
+                        'E': 'parse_end',
                        }
 
     def parse(self):
         '''Returns a dict of elements that have been parsed out of the file'''
         self.stream = FileStack(self.filename)
         tree = defaultdict(list)
+        print "filename:",self.filename
         for phrase in self.stream:
+            print "filename_phra:",phrase
             cmd, _sep, args = phrase.partition(' ')
-            k, v = self.parsenode(cmd)(args)
-            tree[k].append(v)
+            if "E" not in cmd:
+                k, v = self.parsenode(cmd)(args)
+                print "k,v",k, v
+                tree[k].append(v)
         return tree
 
     def parsenode(self, cmd):
@@ -116,8 +121,7 @@ class ViewDrawBase:
         # this would be the place to override or decorate if you want additional
         # info or control on every single action taken.
         parser = self.parsers.get(cmd, 'parse_null')
-        return getattr(self, parser)
-
+        return getattr(self, parser)    
     def parse_null(self, args): # pylint: disable=W0613
         '''A do-nothing parser for commands to be ignored'''
         # override/decorate this if you have a method you want to have called
@@ -149,6 +153,7 @@ class ViewDrawBase:
         """ Returns a parsed label. """
         args = args.split(' ', 8)
         x, y, _font_size, rot, _anchor, _scope, _vis, _sense, text = args
+        print "label:",x, y, _font_size, rot, _anchor, _scope, _vis, _sense, text
         # treat them as annotations for now, I guess.
         # suspect that anchor and vis are as in parse_annot
         # According to other research, _scope is (0=local, 1=global) and _sense
@@ -156,6 +161,7 @@ class ViewDrawBase:
         # FIXME use vis
         rot, _flip = self.rot_and_flip(rot)
         return ('annot', Annotation(text, int(x), int(y), rot, True))
+#        return ('annot', Annotation(text, int(x), int(y), rot, False))
 
     def parse_rev(self, args):
         """ Returns the file revision date, parsed into an annotation. """
@@ -259,12 +265,15 @@ class ViewDrawBase:
 
         Returns a dict in the same style as parse() that the parent node can
         use. Any use of this sub-tree is left up to the caller. """
+        print "sub_cmds:",sub_cmds
         subdata = defaultdict(list)
         for phrase in self.stream:
+            print "phrase:",phrase
             cmd, _sep, args = phrase.partition(' ')
             if cmd not in sub_cmds:
                 self.stream.push(phrase)
                 break
+            print "net__sub_cmds:",phrase,sub_cmds
             k, v = self.parsenode(cmd)(args)
             subdata[k].append(v)
         return subdata
@@ -284,30 +293,40 @@ class ViewDrawSch(ViewDrawBase):
                              'D': 'parse_bounds'
                             })
         self.lib = lib
-
+        print "=======================ViewDrawSch========================"
     def parse(self):
         '''Returns a Design built up from a schematic file that represents one
         sheet of the original schematic'''
         tree = ViewDrawBase.parse(self)
+        print "Done ViewDrawBase.parse"
+        print tree
         # tree['lines'] is a [list of [list of lines]]
         tree['shape'].extend(sum(tree['lines'], []))
         ckt = Design()
         # TODO little weak here, a copy instead?
         ckt.components = self.lib
-
+        
         for net in tree['net']:
             ckt.add_net(net)
         for inst in tree['inst']:
+            print "inst:",inst
             ckt.add_component_instance(inst)
             # hold on tight, this is ugly
+            print ckt.component_instances
             for (netid, netpt, pinid) in inst.conns:
+                print netid, netpt, pinid
+                print ckt.nets
                 net = [n for n in ckt.nets if n.net_id == netid][0]
+                print net
                 comp = ConnectedComponent(inst.instance_id, pinid)
+                print comp
+                print "net.ibpts",net.ibpts
                 net.ibpts[netpt - 1].add_connected_component(comp)
+                print "done conns"
             del inst.conns
+        print "Done ins"    
         for net in ckt.nets:
             del net.ibpts
-
         for shape in tree['shape']:
             ckt.add_shape(shape)
             if isinstance(shape, Label):
@@ -318,14 +337,17 @@ class ViewDrawSch(ViewDrawBase):
         for k, v, annot in tree['attr']:
             ckt.design_attributes.add_attribute(k, v)
             ckt.design_attributes.add_annotation(annot)
-
+#            print "k:",k,"||v",v,"||annot",annot
         return ckt
 
     def parse_net(self, args):
         """ Assembles a net from a list of junctions, segments, and labels. """
         thisnet = Net(args)
-        subdata = self.sub_nodes('J S A L Q B'.split())
+        subdata = self.sub_nodes('J S'.split())
+#        subdata = self.sub_nodes('J S A L Q B'.split())   #origrin
         # finish building thisnet
+        print "thisnet = Net(args): ",thisnet,args
+        print "subdata:",subdata
         for netpt in subdata['netpoint'][:]:
             # using a copy so that we can modify subdata['netpoint'] inside loop
             if netpt.point_id not in thisnet.points:
@@ -377,13 +399,14 @@ class ViewDrawSch(ViewDrawBase):
             libkey = self.scaled_component(libname, libnum, scale)
         else:
             libkey = self.lookup(libname, libnum)
-
+            print self
         thisinst = ComponentInstance(inst, self.lib.components[libkey],
-                                     libkey, 0)
+                                     libkey, 0)                         
         rot, flip = self.rot_and_flip(rot)
         thisinst.add_symbol_attribute(SymbolAttribute(int(x), int(y),
                                                       rot, flip))
-        subdata = self.sub_nodes('|R A C'.split())
+        subdata = self.sub_nodes('|R A C L Q'.split())
+#        print "subdata_inst:",subdata
         for annot in subdata['annot']:
             # use relative position for openjson
             annot.x -= int(x)
@@ -465,21 +488,25 @@ class ViewDrawSym(ViewDrawBase):
                              'L': 'parse_label',
                             })
         self.libdir = libdir
-
+        print "=============================ViewDrawSym======================="
     def parse(self):
         """ Parses a component from the library, returns a Compenent. """
         part = Component(self.filename)
         part.add_symbol(Symbol())
         part.symbols[0].add_body(SBody())
-
         tree = ViewDrawBase.parse(self)
+        print "tree :",tree
         for k, v in tree['attr']:
             part.add_attribute(k, v)
+            print "attributes --- k:",k,"||| v:",v 
         for shape in tree['shape'] + sum(tree['lines'], []):
+            print "shape:",shape
             part.symbols[0].bodies[0].add_shape(shape)
         for pin in tree['pin']:
+            print "pin:",pin
             part.symbols[0].bodies[0].add_pin(pin)
-
+            print part.symbols[0].bodies[0].pins[0].pin_number
+        print "part: ",part
         return part
 
     def parse_type(self, args):
@@ -537,7 +564,8 @@ class ViewDraw:
         # ^-that could be parsed out of a viewdraw.ini some day
         # self.schdir, self.symdirs = schdir, symdirs
         pass
-
+        print ("================================================================================")
+        print ("Viewdraw parse")
     @staticmethod
     def inifile(projdir, inidirsep='\\'):
         """ Attempt to get project info from a viewdraw.ini file
@@ -551,6 +579,7 @@ class ViewDraw:
             schdir, symdirs = projdir + 'sym' + dirsep, {}
             for line in dirlines:
                 # DIR [p] .\directory\to\lib (lib_name)
+                print "line",line
                 _cmd, mode, vals = line.split(' ', 2)
                 # libname might not exist, but if it does it's <= 32 chars, and
                 # enclosed by parens
@@ -575,6 +604,7 @@ class ViewDraw:
 
             schdir = projdir + 'sch' + dirsep
             symdirs['.'] = projdir + 'sym' + dirsep
+            print "schdir:",schdir,"|| symdir:",symdirs
             return (schdir, symdirs)
 
     @staticmethod
@@ -605,19 +635,20 @@ class ViewDraw:
     def parse(self, filename):
         """ Parses a viewdraw project and returns a list of sheets. """
         lib = Components()
-
         projdir = filename[:filename.rfind(dirsep)] + dirsep
-        self.schdir, self.symdirs = self.inifile(projdir, dirsep)
+        self.schdir, self.symdirs = self.inifile(projdir, dirsep)       
         # All the symbol files I have seen have a filename like partname.n
         # where n is a number, for multi-versioned parts I'm guessing
+        
         for libname, libdir in self.symdirs.items():
+            print "libname, libdir",libname, libdir
             files = [f for f in listdir(libdir)
                      if f.rpartition('.')[-1].isdigit()]
-
             for f in files:
+                print "f_files:",f
                 lib.add_component((libname + ':' + f).lower(),
                                   ViewDrawSym(libdir, f).parse())
-
+                print "done sym"
         sheets = list()
         schfiles = [f for f in listdir(self.schdir)
                     if f.split('.')[-1].isdigit()]
@@ -627,6 +658,7 @@ class ViewDraw:
         # For now, we'll return a list of designs, each one represents one
         # sheet in the viewdraw schematic.
         # TODO merge the list to a design object
+        print "return sheet"
         return sheets
 
 
@@ -643,13 +675,15 @@ class FileStack:
         self.f = open(filename)
         self.fstack = []
         self.line = 0
-
+        print "self.fstack:",self.fstack
     def __iter__(self):
         return self
 
     def next(self):
         """ Returns the next command. Continuations handled transparently. """
         tok = self.subpop()
+        # print "tok"
+        # print tok
         try:
             nexttok = self.subpop()
             while nexttok.startswith(' ') or nexttok.startswith('+'):
@@ -664,11 +698,13 @@ class FileStack:
     def subpop(self):
         """ Next line, from the pushed-back stack if applicable. """
         if len(self.fstack) > 0:
+            # print (self.fstack)
             retval = self.fstack.pop()
         else:
             retval = self.f.next()
         # need to increment after iterators have had a chance to StopIteration
         self.line += 1
+        # print "retval:",retval
         return retval
 
     def continuation(self, tok, cont):
