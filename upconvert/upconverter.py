@@ -54,6 +54,7 @@ import sys
 import operator
 import tempfile
 import zipfile
+
 from argparse import ArgumentParser
 try:
     import simplejson as json
@@ -151,7 +152,6 @@ class Upconverter(object):
     @staticmethod
     def parse(in_filename, in_format='openjson', **parser_kwargs):
         """ Parse the given input file using the in_format """
-
         log.debug('parsing %s in format %s', in_filename, in_format)
         try:
             if in_format == 'geda':
@@ -162,7 +162,6 @@ class Upconverter(object):
             raise Exception('ERROR: Unsupported input type: %s' % (in_format))
 
         return par.parse(in_filename)
-
 
     @staticmethod
     def write(dsgn, out_file, out_format='openjson', **parser_kwargs):
@@ -336,6 +335,8 @@ def main(): #pylint: disable=R0912,R0915
     # parse the data
     try:
         design = Upconverter.parse(inputfile, inputtype, **parser_kwargs) #pylint: disable=W0142
+        #print "design",design
+        #print "design[0]:",design[0].design_attributes.attributes                         
     except Exception: #pylint: disable=W0703
         if args.raise_errors:
             raise
@@ -345,7 +346,7 @@ def main(): #pylint: disable=R0912,R0915
     # we got a good result
     if design is not None:
         try:
-            Upconverter.write(design, outputfile, outputtype, **parser_kwargs) #pylint: disable=W0142
+            Upconverter.write(design[0], outputfile, outputtype, **parser_kwargs) #pylint: disable=W0142
         except Exception: #pylint: disable=W0703
             if args.raise_errors:
                 raise
