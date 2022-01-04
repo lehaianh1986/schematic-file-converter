@@ -92,16 +92,16 @@ class GEDA:
             expects a list of directories. It will search for .sym files
             in all the specified directories.
         """
-
+        print("==================================write GEDA==============================================")
         if symbol_dirs is None:
             symbol_dirs = []
 
         symbol_dirs = symbol_dirs + \
             [os.path.join(os.path.dirname(__file__), '..',
                           'library', 'geda')]
+        print "symbol:",symbol_dirs
 
         self.known_symbols = find_symbols(symbol_dirs)
-
         ## offset used as bottom left origin as default
         ## in gEDA when starting new file
         self.offset = Point(0, 0)
@@ -139,31 +139,35 @@ class GEDA:
     def write(self, design, filename):
         """ Write the design to the gEDA format """
         self.component_library = dict()
-
+        print "design_w",design
         attrs = design.design_attributes.attributes
+        print ("-----------------" + str(attrs))
         self.offset.x = int(attrs.get('_geda_offset_x', 0))
         self.offset.y = int(attrs.get('_geda_offset_y', 0))
 
         ## setup project environment
         self.create_project_files(filename)
-
+        print "creat_pr_file"
         ## generate GEDA commands for all top-level shapes/pins
         ## in the current design
         output = self.generate_body_commands(design)
-
+        print "generate_body_commands",output
         ## create symbol files for components writing all symbols
         ## to local 'symbols' directory. Symbols that are available
         ## in provided directories are ignored and referenced.
+        a = design.components.components.items()
+        print "aaaaaaaaaaaaaa---------------",a
         for library_id, component in design.components.components.items():
+            print "library_id, component",library_id, component
+            
             self.write_component_to_file(library_id, component)
-
+            
         ## generate commands for schematic file from design
         ## output is a list of lines
         output += self.write_schematic_file(design)
-
         with codecs.open(filename, encoding='utf-8', mode='w') as f_out:
             f_out.write(self.commands_to_string(output))
-
+        print "Done!!!"
     def create_project_files(self, filename):
         """ Creates various files and directories based on the *filename*.
             The directory of *filename* is assumed to be the project
@@ -192,13 +196,13 @@ class GEDA:
 
         ## create page frame & write name and owner
         output += self._create_schematic_title(design.design_attributes)
-
         ## create component instances
+        print "gen_output_sch:",output
         output += self.generate_instances(design.component_instances)
-
         ## create gEDA commands for all nets
+        print "genoutput_inst:",output
         output += self.generate_net_commands(design.nets)
-
+        print "output:",output
         return output
 
     def generate_instances(self, component_instances):
@@ -211,20 +215,18 @@ class GEDA:
             Returns a list of gEDA commands without trailing linebreaks.
         """
         commands = []
-
         for instance in component_instances:
             mirrored = 0
             if '_MIRRORED' in instance.library_id:
                 mirrored = 1
-
+            print "instance.library_id:",instance.library_id.replace('_MIRRORED', '')
             ## retrieve symbol for instance
             component_symbol = self.component_library[(
                 instance.library_id.replace('_MIRRORED', ''),
                 instance.symbol_index
             )]
-
+            print "component_symbol:",component_symbol
             component_annotations = []
-
             ## create component instance for every symbolattribute
             attr_x, attr_y = 0, 0
             for symbol_attribute in instance.symbol_attributes:
@@ -235,9 +237,7 @@ class GEDA:
                     mirrored=mirrored,
                     basename=component_symbol,
                 )
-
                 component_annotations += symbol_attribute.annotations
-
                 attr_x = symbol_attribute.x
                 attr_y = symbol_attribute.y
 
@@ -245,13 +245,13 @@ class GEDA:
                 commands += self._convert_annotation(annotation)
 
             ## start an attribute environment
-            commands.append('{')
-
+#            commands.append('{')
+            a = []
             refdes = instance.attributes.get('name', None)
             refdes = instance.attributes.get('refdes', refdes)
-
             if refdes:
-                commands += self._create_attribute(
+#                commands += self._create_attribute(
+                a += self._create_attribute(
                     'refdes',
                     refdes,
                     attr_x,
@@ -263,14 +263,18 @@ class GEDA:
                 if key != 'refdes':
                     ## no position details available, stack attributes
                     attr_x, attr_y = attr_x + 10, attr_y + 10
-                    commands += self._create_attribute(
+#                    commands += self._create_attribute(
+                    a += self._create_attribute(
                             key, value,
                             attr_x, attr_y
                     )
 
             ## close the attribute environment
-            commands.append('}')
-
+#            commands.append('}')
+            if len(a) != 0:
+                commands.append('{')
+                commands += a
+                commands.append('}')
         return commands
 
     def write_component_to_file(self, library_id, component):
@@ -288,9 +292,12 @@ class GEDA:
         geda_imported = component.attributes.get('_geda_imported', 'false')
         geda_imported = (geda_imported == "true")
 
+        print "geda_imported:",geda_imported
         prefix = component.attributes.get('_prefix', None)
         suffix = component.attributes.get('_suffix', None)
+        print " prefix :",prefix,"suffix:",suffix
         if prefix is not None and suffix is not None:
+
             component.attributes['refdes'] = '%s?%s' % (prefix, suffix)
 
         symbol_filename = None
@@ -316,17 +323,16 @@ class GEDA:
         ## symbol files should not use offset
         saved_offset = self.offset
         self.offset = shape.Point(0, 0)
-
+        print "component.attributes:",component.attributes
         ## write symbol file for each symbol in component
         for sym_idx, symbol in enumerate(component.symbols):
-
+            print "symbols.component",sym_idx, symbol
             symbol_attr = "_symbol_%d_0" % sym_idx
             if symbol_attr in component.attributes:
                 prefix = component.attributes[symbol_attr]
                 del component.attributes[symbol_attr]
             else:
                 prefix = component.name
-
             if not geda_imported:
                 prefix = prefix.replace(' ', '_')
                 prefix_idx = 1
@@ -336,11 +342,11 @@ class GEDA:
                 symbol_filename = "%s-%d.sym" % (prefix, sym_idx)
                 if prefix not in self.component_names:
                     self.component_names.append(prefix)
-
             commands = []
             for body in symbol.bodies:
+                print "body:",body
                 commands += self.generate_body_commands(body)
-
+                print "commands:",commands
             attr_y = 0
             for key, value in component.attributes.items():
                 if not key.startswith('_symbol') \
@@ -356,6 +362,7 @@ class GEDA:
                 self.project_dirs['symbol'],
                 symbol_filename
             )
+            print "path:",path
             with codecs.open(path, encoding='utf-8', mode='w') as fout:
                 fout.write(self.commands_to_string(commands))
 
@@ -386,32 +393,39 @@ class GEDA:
 
             Returns a list of gEDA commands without trailing linebreaks.
         """
+        print "body",body
         commands = []
-
         id_param = geda_commands.GEDAExtraParameter('id')
         ## extract paths
         paths = {}
         for shape_ in body.shapes:
+            print "shape",shape_
             path_id = shape_.styles.get(id_param.name, None)
             paths.setdefault(path_id, []).append(shape_)
-
         for shape_ in paths.get(None, []):
+#            print "get_value",shape_
             method_name = '_convert_%s' % shape_.type
+#            print "method_name",method_name
             if hasattr(self, method_name):
+#                print "exits_method"
                 commands += getattr(self, method_name)(shape_)
+#                print "get_command_done"
             else:
                 raise GEDAError(
                     "invalid shape '%s' in component" % shape_.type
                 )
-
+#            print "cmd: ",commands
         for path_id in paths:
             if path_id is not None:
                 commands += self._create_path(paths[path_id])
 
         ## create commands for pins
+        print "body.pin",body
         for pin_seq, pin in enumerate(body.pins):
+            print "pin_seq, pin",pin_seq, pin
             commands += self._create_pin(pin_seq, pin)
-
+ 
+#        print "return", commands
         return commands
 
     def generate_net_commands(self, nets):
@@ -493,12 +507,12 @@ class GEDA:
             Returns a list of gEDA commands without linebreaks.
         """
         commands = []
-
+        print "design_attributes.attributes",design_attributes.attributes
         title_frame = design_attributes.attributes.pop(
             '_geda_titleframe',
             None,
         )
-
+        print "title_frame:",title_frame
         if title_frame is None:
             return []
 
@@ -787,14 +801,20 @@ class GEDA:
             Returns gEDA command (without line break) as list.
         """
         # pylint: disable=W0142
+        print "label",label
         assert(issubclass(label.__class__, shape.Label))
-
+        print "label:",label.text
+        print "x:",label.x
+        print "y:",label.y
+        print "alignment:",label.align
+        print "angle:",label.rotation
+        
         kwargs = dict(
             text=label.text,
             x=label.x,
             y=label.y,
             alignment=label.align,
-            angle=label._rotation,
+            angle=label.rotation,
         )
         kwargs.update(label.styles)
         return self._create_text(**kwargs)
