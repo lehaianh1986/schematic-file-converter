@@ -123,7 +123,8 @@ class SymbolAttribute:
     for every body in the symbol that ComponentInstance is an instance of.
     """
 
-    def __init__(self, x, y, rotation, flip=False):
+#    def __init__(self, x, y, rotation, flip=False):
+    def __init__(self, x, y, rotation, flip):
         self.x = x
         self.y = y
         self.rotation = rotation

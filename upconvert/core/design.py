@@ -106,6 +106,7 @@ class Design:
     def add_pin(self, pin):
         """ Add a pin to the schematic sheet """
         self.pins.append(pin)
+        print "add_pin:",pin
 
 
     def add_shape(self, shape):

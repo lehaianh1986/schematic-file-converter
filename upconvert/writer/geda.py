@@ -84,7 +84,8 @@ class GEDA:
     ALIGNMENT = {
         'left': 0,
         'center': 3,
-        'right': 4,
+#        'right': 4,
+        'right': 6,
     }
 
     def __init__(self, symbol_dirs=None):
@@ -147,7 +148,7 @@ class GEDA:
 
         ## setup project environment
         self.create_project_files(filename)
-        print "creat_pr_file"
+        print "creat_pr_file:",filename
         ## generate GEDA commands for all top-level shapes/pins
         ## in the current design
         output = self.generate_body_commands(design)
@@ -156,14 +157,13 @@ class GEDA:
         ## to local 'symbols' directory. Symbols that are available
         ## in provided directories are ignored and referenced.
         a = design.components.components.items()
-        print "aaaaaaaaaaaaaa---------------",a
+        print "aaaaaaaaaaaaaa----write_componen",a
         for library_id, component in design.components.components.items():
-            print "library_id, component",library_id, component
-            
-            self.write_component_to_file(library_id, component)
-            
+            print "library_id, component",library_id, component            
+            self.write_component_to_file(library_id, component)   
         ## generate commands for schematic file from design
         ## output is a list of lines
+        print "aaaaaaaaaaaaaaa-------write_sch"
         output += self.write_schematic_file(design)
         with codecs.open(filename, encoding='utf-8', mode='w') as f_out:
             f_out.write(self.commands_to_string(output))
@@ -217,6 +217,7 @@ class GEDA:
         commands = []
         for instance in component_instances:
             mirrored = 0
+            print "instance:",instance
             if '_MIRRORED' in instance.library_id:
                 mirrored = 1
             print "instance.library_id:",instance.library_id.replace('_MIRRORED', '')
@@ -229,7 +230,11 @@ class GEDA:
             component_annotations = []
             ## create component instance for every symbolattribute
             attr_x, attr_y = 0, 0
-            for symbol_attribute in instance.symbol_attributes:
+            for symbol_attribute in instance.symbol_attributes: 
+                print "symbol_attribute____",symbol_attribute
+                if symbol_attribute.flip == True:
+                    mirrored = 1 
+                print "mirrored:",mirrored
                 commands += self._create_component(
                     symbol_attribute.x,
                     symbol_attribute.y,
@@ -237,6 +242,7 @@ class GEDA:
                     mirrored=mirrored,
                     basename=component_symbol,
                 )
+                print "command_gen_ins:",commands
                 component_annotations += symbol_attribute.annotations
                 attr_x = symbol_attribute.x
                 attr_y = symbol_attribute.y
@@ -247,8 +253,10 @@ class GEDA:
             ## start an attribute environment
 #            commands.append('{')
             a = []
+            print "instance.attributes:",instance.attributes
             refdes = instance.attributes.get('name', None)
             refdes = instance.attributes.get('refdes', refdes)
+            refdes = instance.attributes.get('id_inst', refdes)
             if refdes:
 #                commands += self._create_attribute(
                 a += self._create_attribute(
@@ -292,7 +300,6 @@ class GEDA:
         geda_imported = component.attributes.get('_geda_imported', 'false')
         geda_imported = (geda_imported == "true")
 
-        print "geda_imported:",geda_imported
         prefix = component.attributes.get('_prefix', None)
         suffix = component.attributes.get('_suffix', None)
         print " prefix :",prefix,"suffix:",suffix
@@ -323,10 +330,10 @@ class GEDA:
         ## symbol files should not use offset
         saved_offset = self.offset
         self.offset = shape.Point(0, 0)
-        print "component.attributes:",component.attributes
+#        print "component.attributes:",component.attributes
         ## write symbol file for each symbol in component
         for sym_idx, symbol in enumerate(component.symbols):
-            print "symbols.component",sym_idx, symbol
+#            print "symbols.component",sym_idx, symbol
             symbol_attr = "_symbol_%d_0" % sym_idx
             if symbol_attr in component.attributes:
                 prefix = component.attributes[symbol_attr]
@@ -343,10 +350,11 @@ class GEDA:
                 if prefix not in self.component_names:
                     self.component_names.append(prefix)
             commands = []
+            print "symbol_file----test:",symbol_filename
             for body in symbol.bodies:
                 print "body:",body
                 commands += self.generate_body_commands(body)
-                print "commands:",commands
+#                print "commands:",commands
             attr_y = 0
             for key, value in component.attributes.items():
                 if not key.startswith('_symbol') \
@@ -363,6 +371,7 @@ class GEDA:
                 symbol_filename
             )
             print "path:",path
+            print "command_component:",commands
             with codecs.open(path, encoding='utf-8', mode='w') as fout:
                 fout.write(self.commands_to_string(commands))
 
@@ -393,34 +402,30 @@ class GEDA:
 
             Returns a list of gEDA commands without trailing linebreaks.
         """
-        print "body",body
         commands = []
         id_param = geda_commands.GEDAExtraParameter('id')
         ## extract paths
         paths = {}
         for shape_ in body.shapes:
-            print "shape",shape_
             path_id = shape_.styles.get(id_param.name, None)
-            paths.setdefault(path_id, []).append(shape_)
+            paths.setdefault(path_id, []).append(shape_)   
         for shape_ in paths.get(None, []):
-#            print "get_value",shape_
             method_name = '_convert_%s' % shape_.type
-#            print "method_name",method_name
+            print "shape_generate_body_commands:",shape_,method_name
             if hasattr(self, method_name):
-#                print "exits_method"
                 commands += getattr(self, method_name)(shape_)
-#                print "get_command_done"
+                print "get_command_done",commands
             else:
                 raise GEDAError(
                     "invalid shape '%s' in component" % shape_.type
                 )
-#            print "cmd: ",commands
+        print "cmd: ",commands
         for path_id in paths:
             if path_id is not None:
                 commands += self._create_path(paths[path_id])
 
         ## create commands for pins
-        print "body.pin",body
+        print "body.pin",body.pins
         for pin_seq, pin in enumerate(body.pins):
             print "pin_seq, pin",pin_seq, pin
             commands += self._create_pin(pin_seq, pin)
@@ -507,7 +512,9 @@ class GEDA:
             Returns a list of gEDA commands without linebreaks.
         """
         commands = []
-        print "design_attributes.attributes",design_attributes.attributes
+        print "design_attributes.attributes",design_attributes.annotations
+        for i in design_attributes.annotations:
+            print "i:",i
         title_frame = design_attributes.attributes.pop(
             '_geda_titleframe',
             None,
@@ -558,7 +565,8 @@ class GEDA:
 
         return commands
 
-    def _create_component(self, x, y, basename, angle=0, mirrored=0):
+#    def _create_component(self, x, y, basename, angle=0, mirrored=0):
+    def _create_component(self, x, y, basename, angle, mirrored):
         """ Creates a gEDA command for a component in symbol file *basename*
             at location *x*, *y*. *angle* allows for specifying the rotation
             angle of the component and is specified in pi radians. Valid values
@@ -567,6 +575,7 @@ class GEDA:
             Returns a list of gEDA commands without linebreaks.
         """
         # pylint: disable=C0103,R0913
+        print  x, y, basename, angle, mirrored
         x, y = self.conv_coords(x, y)
         return geda_commands.GEDAComponentCommand().generate_command(
             x=x, y=y,
@@ -587,22 +596,19 @@ class GEDA:
         # pylint: disable=C0103
         if key in self.ignored_attributes or not value:
             return []
-
         ## make private attribute invisible in gEDA
         if key.startswith('_'):
             key = key[1:]
             kwargs['visibility'] = 0
-
         try:
             text = "%s=%s" % (unicode(key), unicode(value))
         except UnicodeDecodeError:
             text = "%s=%s" % (unicode(key), unicode(value, errors='replace'))
-
         kwargs['style_color'] = geda_commands.GEDAColor.ATTRIBUTE_COLOR
-
+        print "kwargs__create_attribute:",kwargs
         return self._create_text(text, x, y, **kwargs)
 
-    def _create_text(self, text, x, y, **kwargs):
+    def _create_text(self, text, x, y,size='10', **kwargs):
         """ Creates a gEDA text command with *text* at position
             *x*, *y*. Further valid keywords include *size*,
             *alignment*, *angle* and *visibility*.
@@ -612,17 +618,18 @@ class GEDA:
         # pylint: disable=C0103
         if isinstance(text, basestring):
             text = text.split('\n')
-
         assert(isinstance(text, types.ListType))
 
         kwargs.update({
             'x': self.x_to_mils(x),
             'y': self.y_to_mils(y),
             'angle': self.conv_angle(kwargs.get('angle', 0)),
-            'alignment': self.ALIGNMENT[kwargs.get('alignment', 'left')],
+#            'angle': self.conv_angle(kwargs.get('angle', 180)),
+#            'alignment': self.ALIGNMENT[kwargs.get('alignment', 'left')],
+            'alignment': self.ALIGNMENT[kwargs.get('alignment', 'right')],
             'num_lines': len(text),
+            'size': size,  #  follow size viewdraw but not use
         })
-
         commands = geda_commands.GEDATextCommand().generate_command(**kwargs)
         return commands + text
 
@@ -647,11 +654,8 @@ class GEDA:
             "y2": self.y_to_mils(pin.p1.y),
         }
         kwargs.update(pin.styles)
-
         command = geda_commands.GEDAPinCommand().generate_command(**kwargs)
-
         command.append('{')
-
         if pin.label is not None:
             attribute = self._create_attribute(
                 'pinlabel',
@@ -659,26 +663,26 @@ class GEDA:
                 pin.label.x,
                 pin.label.y,
                 alignment=pin.label.align,
-                angle=pin.label._rotation
+                angle=pin.label.rotation
             )
-            command += attribute
-
+            command += attribute   
         command += self._create_attribute(
             'pinseq',
             pin_seq,
-            connected_x + 10,
-            connected_y + 10,
+            connected_x + 1,    #origrin 10
+            connected_y + 1,    #origrin 10
             visibility=0,
         )
+        print "command += self._create_attribute(",command
         command += self._create_attribute(
             'pinnumber',
             pin.pin_number,
-            connected_x + 10,
-            connected_y + 20,
+            connected_x + 1,      #origrin 10
+            connected_y + 2,      #origrin 20
             visibility=0,
         )
-
-        command.append('}')
+        print "command += self._create_attribute( 2"
+        command.append('}')       
         return command
 
     def _convert_annotation(self, annotation):
@@ -801,13 +805,13 @@ class GEDA:
             Returns gEDA command (without line break) as list.
         """
         # pylint: disable=W0142
-        print "label",label
+#        print "label",label
         assert(issubclass(label.__class__, shape.Label))
-        print "label:",label.text
-        print "x:",label.x
-        print "y:",label.y
-        print "alignment:",label.align
-        print "angle:",label.rotation
+#        print "label:",label.text
+#        print "x:",label.x
+#        print "y:",label.y
+#        print "alignment:",label.align
+#        print "angle:",label.rotation
         
         kwargs = dict(
             text=label.text,
@@ -815,6 +819,7 @@ class GEDA:
             y=label.y,
             alignment=label.align,
             angle=label.rotation,
+#            size=label.font_size,   # use size follow viewdraw
         )
         kwargs.update(label.styles)
         return self._create_text(**kwargs)
@@ -1034,12 +1039,13 @@ class GEDA:
 
             Retuns converted and cut-off angle in degrees.
         """
-        converted_angle = int(angle * 180) // int(steps)
+#        converted_angle = int(angle * 180) // int(steps)
+        converted_angle = int(angle * 90) // int(steps)
         converted_angle *= steps
 
         ## convert from clockwise rotation to counter-clockwise
         ## as used in gEDA schematic
-        return abs(360 - converted_angle) % 360
+        return converted_angle
 
     def conv_coords(self, x_px, y_px):
         """ Converts *x_px*, *y_px* from pixel to mils and translating

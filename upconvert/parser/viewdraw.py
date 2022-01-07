@@ -81,8 +81,7 @@ class ViewDrawBase:
         flip = vd_rot > 3
         # if part is flipped around y-axis. When applying transforms, flip it
         # first, then rotate it.
-        vd_rot %= 4
-        return ((2 - float(vd_rot) / 2) % 2, flip)
+        return ((vd_rot + 4) % 4, flip)
 
 
     def __init__(self, filename):
@@ -192,7 +191,8 @@ class ViewDrawBase:
         x, y, _size, rot, _anchor, text = args.split(' ', 5)
         # TODO sort out alignment
         rot, _flip = self.rot_and_flip(rot)
-        return ('shape', Label(int(x), int(y), text, align='left', rotation=rot))
+#        return ('shape', Label(int(x), int(y), text, align='left', rotation=rot))
+        return ('shape', Label(int(x), int(y), text, _size, align='right', rotation=rot))
 
     def parse_ver(self, args):
         """ Returns the ViewDraw output file format version. """
@@ -317,7 +317,7 @@ class ViewDrawSch(ViewDrawBase):
                 print netid, netpt, pinid
                 print ckt.nets
                 net = [n for n in ckt.nets if n.net_id == netid][0]
-                print net
+                print "net:",net
                 comp = ConnectedComponent(inst.instance_id, pinid)
                 print comp
                 print "net.ibpts",net.ibpts
@@ -343,8 +343,8 @@ class ViewDrawSch(ViewDrawBase):
     def parse_net(self, args):
         """ Assembles a net from a list of junctions, segments, and labels. """
         thisnet = Net(args)
-        subdata = self.sub_nodes('J S'.split())
-#        subdata = self.sub_nodes('J S A L Q B'.split())   #origrin
+#       subdata = self.sub_nodes('J S L'.split())
+        subdata = self.sub_nodes('J S A L Q B'.split())   #origrin
         # finish building thisnet
         print "thisnet = Net(args): ",thisnet,args
         print "subdata:",subdata
@@ -401,20 +401,22 @@ class ViewDrawSch(ViewDrawBase):
             libkey = self.lookup(libname, libnum)
             print self
         thisinst = ComponentInstance(inst, self.lib.components[libkey],
-                                     libkey, 0)                         
+                                     libkey, 0)
         rot, flip = self.rot_and_flip(rot)
+        print "flip:",flip
         thisinst.add_symbol_attribute(SymbolAttribute(int(x), int(y),
                                                       rot, flip))
         subdata = self.sub_nodes('|R A C L Q'.split())
-#        print "subdata_inst:",subdata
+        print "subdata_inst:",subdata
         for annot in subdata['annot']:
             # use relative position for openjson
-            annot.x -= int(x)
-            annot.y -= int(y)
+#            print "annot:",annot,int(x),int(y),annot.x,annot.y
+#            annot.x -= int(x)
+#            annot.y -= int(y)
             thisinst.symbol_attributes[0].add_annotation(annot)
             if '=' in annot.value:
                 thisinst.add_attribute(*(annot.value.split('=', 1)))
-
+        thisinst.add_attribute('refdes','M1I'+inst)                           # add to gen refdes to sch
         # Turns out C can reference a net before it's been created via
         # the N command. Really don't like passing stuff inband like this. Ugh.
         thisinst.conns = subdata['conn']
@@ -470,6 +472,7 @@ class ViewDrawSch(ViewDrawBase):
     def lookup(self, libname, num):
         """ Given a component name and version, returns the filename """
         libname = libname.lower() + '.' +num
+        print "libname:",libname
         for key in self.lib.components:
             component = key[key.find(':')+1:]
             if libname == component:
@@ -536,7 +539,8 @@ class ViewDrawSym(ViewDrawBase):
         # _rot and _side are not needed, because the x-y data tells us what we
         # need to know. _inv is used to draw the little inverted signal cirles.
         thispin = Pin(pid, (x0, y0), (x1, y1))
-        subdata = self.sub_nodes(['L'])
+        subdata = self.sub_nodes('A L'.split())
+        print "subdata_P:",subdata
         if len(subdata['label']) > 0:
             # I suppose if there's more than one label, just go with the first
             thispin.label = subdata['label'][0]

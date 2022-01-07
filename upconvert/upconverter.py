@@ -335,8 +335,8 @@ def main(): #pylint: disable=R0912,R0915
     # parse the data
     try:
         design = Upconverter.parse(inputfile, inputtype, **parser_kwargs) #pylint: disable=W0142
-        #print "design",design
-        #print "design[0]:",design[0].design_attributes.attributes                         
+        print "design",design
+        print "design[0]:",design[0].design_attributes.attributes                         
     except Exception: #pylint: disable=W0703
         if args.raise_errors:
             raise
@@ -346,7 +346,8 @@ def main(): #pylint: disable=R0912,R0915
     # we got a good result
     if design is not None:
         try:
-            Upconverter.write(design[0], outputfile, outputtype, **parser_kwargs) #pylint: disable=W0142
+            for data in design:
+                Upconverter.write(data, outputfile, outputtype, **parser_kwargs) #pylint: disable=W0142
         except Exception: #pylint: disable=W0703
             if args.raise_errors:
                 raise
